@@ -1,65 +1,108 @@
-import Image from "next/image";
+'use client';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { Block, WalletData } from '@/types';
 
-export default function Home() {
+interface Stats {
+  totalBlocks: number;
+  isValid: boolean;
+  circulatingMED: number;
+  totalWallets: number;
+}
+
+export default function Dashboard() {
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [recentBlocks, setRecentBlocks] = useState<Block[]>([]);
+
+  const fetchData = async () => {
+    const [chainRes, walletRes] = await Promise.all([
+      fetch('/api/blockchain'),
+      fetch('/api/wallet'),
+    ]);
+    const chainData = await chainRes.json() as { chain: Block[]; length: number; isValid: boolean };
+    const walletData = await walletRes.json() as { wallets: WalletData[] };
+
+    const circulating = walletData.wallets.reduce(
+      (sum, w) => sum + w.balance, 0
+    );
+
+    setStats({
+      totalBlocks: chainData.length,
+      isValid: chainData.isValid,
+      circulatingMED: circulating,
+      totalWallets: walletData.wallets.length,
+    });
+
+    setRecentBlocks(chainData.chain.slice(-5).reverse());
+  };
+
+  useEffect(() => {
+    const loadData = async () => {
+      await fetchData();
+    };
+
+    loadData();
+  }, []);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="min-h-screen bg-slate-950 text-white p-8">
+      <div className="max-w-6xl mx-auto">
+        <div className="mb-10">
+          <h1 className="text-4xl font-bold text-cyan-400">🏥 MedChain</h1>
+          <p className="text-slate-400 mt-1">Hospital Blockchain System — Powered by MED Coin</p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        {stats && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            {[
+              { label: 'Total Blocks', value: stats.totalBlocks, color: 'text-cyan-400' },
+              { label: 'Chain Status', value: stats.isValid ? '✅ VALID' : '❌ INVALID', color: stats.isValid ? 'text-green-400' : 'text-red-400' },
+              { label: 'Circulating MED', value: `${stats.circulatingMED.toLocaleString()} MED`, color: 'text-yellow-400' },
+              { label: 'Active Wallets', value: stats.totalWallets, color: 'text-purple-400' },
+            ].map((s) => (
+              <div key={s.label} className="bg-slate-800 rounded-xl p-5 border border-slate-700">
+                <p className="text-slate-400 text-sm">{s.label}</p>
+                <p className={`text-2xl font-bold mt-1 ${s.color}`}>{s.value}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="mb-8">
+          <h2 className="text-xl font-semibold mb-4 text-slate-200">Recent Blocks</h2>
+          <div className="space-y-2">
+            {recentBlocks.map((block) => (
+              <div key={block.index} className="bg-slate-800 border border-slate-700 rounded-lg p-4 flex justify-between items-center">
+                <div>
+                  <span className="text-cyan-400 font-mono font-bold">Block #{block.index}</span>
+                  <span className="ml-4 text-slate-300">{block.data.condition}</span>
+                  <span className="ml-4 text-slate-500 text-sm">Patient: {block.data.patientId}</span>
+                </div>
+                <div className="text-right">
+                  <p className="text-slate-500 text-xs font-mono">{block.hash.slice(0, 16)}...</p>
+                  <p className="text-slate-500 text-xs">{new Date(block.timestamp).toLocaleString('id-ID')}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-      </main>
-    </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          {[
+            { href: '/blockchain', label: '⛓️ Blockchain', desc: 'Lihat semua blok' },
+            { href: '/patients', label: '🏥 Patients', desc: 'Data rekam medis' },
+            { href: '/wallet', label: '👛 Wallet', desc: 'MED coin wallet' },
+            { href: '/payment', label: '💳 Payment', desc: 'Bayar tagihan' },
+            { href: '/contracts', label: '📜 Contracts', desc: 'Smart contract log' },
+          ].map((nav) => (
+            <Link key={nav.href} href={nav.href}
+              className="bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl p-5 transition">
+              <p className="text-lg font-semibold">{nav.label}</p>
+              <p className="text-slate-400 text-sm mt-1">{nav.desc}</p>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </main>
   );
 }
